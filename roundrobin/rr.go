@@ -14,15 +14,40 @@ import (
 	"github.com/vulcand/oxy/utils"
 )
 
+type URLMap map[string]string
+
 var (
 	// urlMap store the pod url for a given key
 	// to make sure future request will be routed to
 	// same url when deployment is scaled up and down
-	urlMap map[string]string
+	urlMap URLMap
+
+	mutex *sync.Mutex
 )
 
 func init() {
 	urlMap = make(map[string]string)
+}
+
+func (m URLMap) get(key string) (string, bool) {
+	mutex.Lock()
+	defer mutex.Unlock()
+	if value, ok := m[key]; ok {
+		return value, true
+	}
+	return "", false
+}
+
+func (m URLMap) set(key string, value string) {
+	mutex.Lock()
+	defer mutex.Unlock()
+	m[key] = value
+}
+
+func (m URLMap) delete(key string) {
+	mutex.Lock()
+	defer mutex.Unlock()
+	delete(m, key)
 }
 
 // Weight is an optional functional argument that sets weight of the server
@@ -126,9 +151,7 @@ func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	stuck := false
 	servers := r.Servers()
 
-	r.mutex.Lock()
-
-	if pod, ok := urlMap[key]; ok {
+	if pod, ok := urlMap.get(key); ok {
 		// check if the pod is unhealthy or terminated
 		// if it is, remove the pod from urlMap
 		isExist := false
@@ -148,7 +171,7 @@ func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 
 		if !isExist {
-			delete(urlMap, pod)
+			urlMap.delete(pod)
 		}
 	}
 
@@ -174,10 +197,8 @@ func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 
 		newReq.URL = url
-		urlMap[key] = pod
+		urlMap.set(key, pod)
 	}
-
-	r.mutex.Unlock()
 
 	if r.log.Level >= log.DebugLevel {
 		// log which backend URL we're sending this request to
