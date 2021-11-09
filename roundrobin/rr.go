@@ -2,6 +2,7 @@
 package roundrobin
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -142,6 +143,7 @@ func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				newReq.URL = url
 				stuck = true
 				isExist = true
+				break
 			}
 		}
 
@@ -150,7 +152,12 @@ func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	if len(r.servers) > 0 && !stuck {
+	if len(r.servers) == 0 {
+		r.errHandler.ServeHTTP(w, req, errors.New("no servers in the pool"))
+		return
+	}
+
+	if !stuck {
 		sortedServers := make([]string, len(r.servers))
 
 		for i, s := range r.servers {
