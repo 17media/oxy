@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/vulcand/oxy/roundrobin/stickycookie"
+	"github.com/17media/oxy/roundrobin/stickycookie"
 )
 
 // CookieOptions has all the options one would like to set on the affinity cookie

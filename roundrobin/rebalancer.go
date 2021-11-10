@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/17media/oxy/memmetrics"
+	"github.com/17media/oxy/utils"
 	"github.com/mailgun/timetools"
 	log "github.com/sirupsen/logrus"
-	"github.com/vulcand/oxy/memmetrics"
-	"github.com/vulcand/oxy/utils"
 )
 
 // RebalancerOption - functional option setter for rebalancer

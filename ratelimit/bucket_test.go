@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/17media/oxy/testutils"
 	"github.com/mailgun/timetools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vulcand/oxy/testutils"
 )
 
 func TestConsumeSingleToken(t *testing.T) {

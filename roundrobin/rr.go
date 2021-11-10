@@ -9,9 +9,9 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/17media/oxy/utils"
 	"github.com/Yapcheekian/hashring"
 	log "github.com/sirupsen/logrus"
-	"github.com/vulcand/oxy/utils"
 )
 
 type URLMap map[string]string

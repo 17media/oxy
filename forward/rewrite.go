@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/vulcand/oxy/utils"
+	"github.com/17media/oxy/utils"
 )
 
 // HeaderRewriter is responsible for removing hop-by-hop headers and setting forwarding headers
