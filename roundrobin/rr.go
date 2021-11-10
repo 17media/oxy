@@ -22,7 +22,7 @@ var (
 	// same url when deployment is scaled up and down
 	urlMap URLMap
 
-	mutex *sync.Mutex
+	mutex sync.Mutex
 )
 
 func init() {
