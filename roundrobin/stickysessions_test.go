@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/17media/oxy/forward"
+	"github.com/17media/oxy/roundrobin/stickycookie"
+	"github.com/17media/oxy/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vulcand/oxy/forward"
-	"github.com/vulcand/oxy/roundrobin/stickycookie"
-	"github.com/vulcand/oxy/testutils"
 )
 
 func TestBasic(t *testing.T) {

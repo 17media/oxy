@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/17media/oxy/utils"
 	"github.com/mailgun/timetools"
 	"github.com/mailgun/ttlmap"
 	log "github.com/sirupsen/logrus"
-	"github.com/vulcand/oxy/utils"
 )
 
 // DefaultCapacity default capacity

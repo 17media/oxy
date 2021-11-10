@@ -3,14 +3,14 @@ Oxy [![Build Status](https://travis-ci.org/vulcand/oxy.svg?branch=master)](https
 
 Oxy is a Go library with HTTP handlers that enhance HTTP standard library:
 
-* [Buffer](https://pkg.go.dev/github.com/vulcand/oxy/buffer) retries and buffers requests and responses 
-* [Stream](https://pkg.go.dev/github.com/vulcand/oxy/stream) passes-through requests, supports chunked encoding with configurable flush interval 
-* [Forward](https://pkg.go.dev/github.com/vulcand/oxy/forward) forwards requests to remote location and rewrites headers 
-* [Roundrobin](https://pkg.go.dev/github.com/vulcand/oxy/roundrobin) is a round-robin load balancer 
-* [Circuit Breaker](https://pkg.go.dev/github.com/vulcand/oxy/cbreaker) Hystrix-style circuit breaker
-* [Connlimit](https://pkg.go.dev/github.com/vulcand/oxy/connlimit) Simultaneous connections limiter
-* [Ratelimit](https://pkg.go.dev/github.com/vulcand/oxy/ratelimit) Rate limiter (based on tokenbucket algo)
-* [Trace](https://pkg.go.dev/github.com/vulcand/oxy/trace) Structured request and response logger
+* [Buffer](https://pkg.go.dev/github.com/17media/oxy/buffer) retries and buffers requests and responses 
+* [Stream](https://pkg.go.dev/github.com/17media/oxy/stream) passes-through requests, supports chunked encoding with configurable flush interval 
+* [Forward](https://pkg.go.dev/github.com/17media/oxy/forward) forwards requests to remote location and rewrites headers 
+* [Roundrobin](https://pkg.go.dev/github.com/17media/oxy/roundrobin) is a round-robin load balancer 
+* [Circuit Breaker](https://pkg.go.dev/github.com/17media/oxy/cbreaker) Hystrix-style circuit breaker
+* [Connlimit](https://pkg.go.dev/github.com/17media/oxy/connlimit) Simultaneous connections limiter
+* [Ratelimit](https://pkg.go.dev/github.com/17media/oxy/ratelimit) Rate limiter (based on tokenbucket algo)
+* [Trace](https://pkg.go.dev/github.com/17media/oxy/trace) Structured request and response logger
 
 It is designed to be fully compatible with http standard library, easy to customize and reuse.
 
@@ -33,8 +33,8 @@ Simple reverse proxy
 
 import (
   "net/http"
-  "github.com/vulcand/oxy/forward"
-  "github.com/vulcand/oxy/testutils"
+  "github.com/17media/oxy/forward"
+  "github.com/17media/oxy/testutils"
   )
 
 // Forwards incoming requests to whatever location URL points to, adds proper forwarding headers
@@ -61,8 +61,8 @@ As a next step, let us add a round robin load-balancer:
 
 import (
   "net/http"
-  "github.com/vulcand/oxy/forward"
-  "github.com/vulcand/oxy/roundrobin"
+  "github.com/17media/oxy/forward"
+  "github.com/17media/oxy/roundrobin"
   )
 
 // Forwards incoming requests to whatever location URL points to, adds proper forwarding headers
@@ -86,9 +86,9 @@ What if we want to handle retries and replay the request in case of errors? `buf
 
 import (
   "net/http"
-  "github.com/vulcand/oxy/forward"
-  "github.com/vulcand/oxy/buffer"
-  "github.com/vulcand/oxy/roundrobin"
+  "github.com/17media/oxy/forward"
+  "github.com/17media/oxy/buffer"
+  "github.com/17media/oxy/roundrobin"
   )
 
 // Forwards incoming requests to whatever location URL points to, adds proper forwarding headers

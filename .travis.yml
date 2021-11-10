@@ -4,7 +4,7 @@ go:
   - 1.15.x
   - 1.x
 
-go_import_path: github.com/vulcand/oxy
+go_import_path: github.com/17media/oxy
 
 notifications:
   email:
