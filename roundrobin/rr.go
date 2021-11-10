@@ -2,14 +2,53 @@
 package roundrobin
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"sync"
 
+	"github.com/Yapcheekian/hashring"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/oxy/utils"
 )
+
+type URLMap map[string]string
+
+var (
+	// urlMap store the pod url for a given key
+	// to make sure future request will be routed to
+	// same url when deployment is scaled up and down
+	urlMap URLMap
+
+	mutex *sync.Mutex
+)
+
+func init() {
+	urlMap = make(map[string]string)
+}
+
+func (m URLMap) get(key string) (string, bool) {
+	mutex.Lock()
+	defer mutex.Unlock()
+	if value, ok := m[key]; ok {
+		return value, true
+	}
+	return "", false
+}
+
+func (m URLMap) set(key string, value string) {
+	mutex.Lock()
+	defer mutex.Unlock()
+	m[key] = value
+}
+
+func (m URLMap) delete(key string) {
+	mutex.Lock()
+	defer mutex.Unlock()
+	delete(m, key)
+}
 
 // Weight is an optional functional argument that sets weight of the server
 func Weight(w int) ServerOption {
@@ -107,31 +146,58 @@ func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	// make shallow copy of request before chaning anything to avoid side effects
 	newReq := *req
-	stuck := false
-	if r.stickySession != nil {
-		cookieURL, present, err := r.stickySession.GetBackend(&newReq, r.Servers())
 
-		if err != nil {
-			log.Warnf("vulcand/oxy/roundrobin/rr: error using server from cookie: %v", err)
+	key := newReq.RequestURI
+	stuck := false
+	servers := r.Servers()
+
+	if pod, ok := urlMap.get(key); ok {
+		// check if the pod is unhealthy or terminated
+		// if it is, remove the pod from urlMap
+		isExist := false
+		for _, url := range servers {
+			ok, err := r.areURLEqual(pod, url)
+
+			if err != nil {
+				log.Warnf("error parsing url: %v", err)
+			}
+
+			if ok {
+				newReq.URL = url
+				stuck = true
+				isExist = true
+				break
+			}
 		}
 
-		if present {
-			newReq.URL = cookieURL
-			stuck = true
+		if !isExist {
+			urlMap.delete(pod)
 		}
 	}
 
+	if len(r.servers) == 0 {
+		r.errHandler.ServeHTTP(w, req, errors.New("no servers in the pool"))
+		return
+	}
+
 	if !stuck {
-		url, err := r.NextServer()
-		if err != nil {
-			r.errHandler.ServeHTTP(w, req, err)
-			return
+		sortedServers := make([]string, len(r.servers))
+
+		for i, s := range r.servers {
+			sortedServers[i] = s.url.String()
 		}
 
-		if r.stickySession != nil {
-			r.stickySession.StickBackend(url, &w)
+		sort.Strings(sortedServers)
+		ring := hashring.New(sortedServers)
+		pod, _ := ring.GetNode(key)
+		url, err := url.Parse(pod)
+
+		if err != nil {
+			log.Warnf("17Media/oxy/roundrobin/rr: error parsing url: %v", err)
 		}
+
 		newReq.URL = url
+		urlMap.set(key, pod)
 	}
 
 	if r.log.Level >= log.DebugLevel {
@@ -145,6 +211,16 @@ func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	r.next.ServeHTTP(w, &newReq)
+}
+
+// areURLEqual compare a string to a url and check if the string is the same as the url value.
+func (r *RoundRobin) areURLEqual(normalized string, u *url.URL) (bool, error) {
+	u1, err := url.Parse(normalized)
+	if err != nil {
+		return false, err
+	}
+
+	return u1.Scheme == u.Scheme && u1.Host == u.Host && u1.Path == u.Path, nil
 }
 
 // NextServer gets the next server
