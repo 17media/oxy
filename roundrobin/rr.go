@@ -175,16 +175,16 @@ func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	if len(r.servers) == 0 {
+	if len(servers) == 0 {
 		r.errHandler.ServeHTTP(w, req, errors.New("no servers in the pool"))
 		return
 	}
 
 	if !stuck {
-		sortedServers := make([]string, len(r.servers))
+		sortedServers := make([]string, len(servers))
 
-		for i, s := range r.servers {
-			sortedServers[i] = s.url.String()
+		for i, s := range servers {
+			sortedServers[i] = s.String()
 		}
 
 		sort.Strings(sortedServers)
