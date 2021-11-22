@@ -61,7 +61,7 @@ func (m URLMap) get(key string) (string, error) {
 
 func (m URLMap) set(key, value string) error {
 	return m.db.Update(func(txn *badger.Txn) error {
-		e := badger.NewEntry([]byte(key), []byte(value)).WithTTL(12 * time.Hour)
+		e := badger.NewEntry([]byte(key), []byte(value)).WithTTL(36 * time.Hour)
 		return txn.SetEntry(e)
 	})
 }
