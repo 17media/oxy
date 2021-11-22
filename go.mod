@@ -1,4 +1,4 @@
-module github.com/17media/oxy
+module github.com/Yapcheekian/oxy
 
 go 1.14
 
