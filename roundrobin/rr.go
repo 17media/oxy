@@ -173,7 +173,7 @@ func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	stuck := false
 	servers := r.Servers()
 
-	if pod, err := urlMap.get(key); err != nil {
+	if pod, err := urlMap.get(key); err == nil {
 		// check if the pod is unhealthy or terminated
 		// if it is, remove the pod from urlMap
 		isExist := false
