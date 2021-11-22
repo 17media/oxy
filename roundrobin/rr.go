@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/17media/oxy/utils"
 	badger "github.com/dgraph-io/badger/v3"
@@ -60,15 +61,14 @@ func (m URLMap) get(key string) (string, error) {
 
 func (m URLMap) set(key, value string) error {
 	return m.db.Update(func(txn *badger.Txn) error {
-		err := txn.Set([]byte(key), []byte(value))
-		return err
+		e := badger.NewEntry([]byte(key), []byte(value)).WithTTL(5 * time.Hour)
+		return txn.SetEntry(e)
 	})
 }
 
 func (m URLMap) delete(key string) error {
 	return m.db.Update(func(txn *badger.Txn) error {
-		err := txn.Delete([]byte(key))
-		return err
+		return txn.Delete([]byte(key))
 	})
 }
 
@@ -160,10 +160,6 @@ func (r *RoundRobin) Next() http.Handler {
 }
 
 func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	urlMap.set("name", "yap")
-	test, _ := urlMap.get("name")
-	fmt.Println(test)
-
 	if r.log.Level >= log.DebugLevel {
 		logEntry := r.log.WithField("Request", utils.DumpHttpRequest(req))
 		logEntry.Debug("vulcand/oxy/roundrobin/rr: begin ServeHttp on request")
