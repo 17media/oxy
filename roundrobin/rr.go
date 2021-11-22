@@ -2,15 +2,12 @@
 package roundrobin
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
-	"sort"
 	"sync"
 
 	"github.com/17media/oxy/utils"
-	"github.com/Yapcheekian/hashring"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -175,29 +172,16 @@ func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	if len(servers) == 0 {
-		r.errHandler.ServeHTTP(w, req, errors.New("no servers in the pool"))
-		return
-	}
-
 	if !stuck {
-		sortedServers := make([]string, len(servers))
-
-		for i, s := range servers {
-			sortedServers[i] = s.String()
-		}
-
-		sort.Strings(sortedServers)
-		ring := hashring.New(sortedServers)
-		pod, _ := ring.GetNode(key)
-		url, err := url.Parse(pod)
-
+		url, err := r.NextServer()
 		if err != nil {
-			log.Warnf("17Media/oxy/roundrobin/rr: error parsing url: %v", err)
+			r.errHandler.ServeHTTP(w, req, err)
+			return
 		}
 
 		newReq.URL = url
-		urlMap.set(key, pod)
+
+		urlMap.set(key, url.String())
 	}
 
 	if r.log.Level >= log.DebugLevel {
