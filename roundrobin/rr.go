@@ -8,43 +8,68 @@ import (
 	"sync"
 
 	"github.com/17media/oxy/utils"
+	badger "github.com/dgraph-io/badger/v3"
 	log "github.com/sirupsen/logrus"
 )
 
-type URLMap map[string]string
+type URLMap struct {
+	db *badger.DB
+}
 
 var (
-	// urlMap store the pod url for a given key
-	// to make sure future request will be routed to
-	// same url when deployment is scaled up and down
 	urlMap URLMap
-
-	mutex sync.Mutex
 )
 
 func init() {
-	urlMap = make(map[string]string)
-}
+	badger, err := badger.Open(badger.DefaultOptions("").WithInMemory(true))
 
-func (m URLMap) get(key string) (string, bool) {
-	mutex.Lock()
-	defer mutex.Unlock()
-	if value, ok := m[key]; ok {
-		return value, true
+	urlMap = URLMap{
+		db: badger,
 	}
-	return "", false
+
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
-func (m URLMap) set(key string, value string) {
-	mutex.Lock()
-	defer mutex.Unlock()
-	m[key] = value
+func (m URLMap) get(key string) (string, error) {
+	var val []byte
+
+	err := m.db.View(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte(key))
+
+		if err != nil {
+			return err
+		}
+
+		val, err = item.ValueCopy(nil)
+
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	return string(val), nil
 }
 
-func (m URLMap) delete(key string) {
-	mutex.Lock()
-	defer mutex.Unlock()
-	delete(m, key)
+func (m URLMap) set(key, value string) error {
+	return m.db.Update(func(txn *badger.Txn) error {
+		err := txn.Set([]byte(key), []byte(value))
+		return err
+	})
+}
+
+func (m URLMap) delete(key string) error {
+	return m.db.Update(func(txn *badger.Txn) error {
+		err := txn.Delete([]byte(key))
+		return err
+	})
 }
 
 // Weight is an optional functional argument that sets weight of the server
@@ -135,7 +160,9 @@ func (r *RoundRobin) Next() http.Handler {
 }
 
 func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	fmt.Println("helloooooooo")
+	urlMap.set("name", "yap")
+	test, _ := urlMap.get("name")
+	fmt.Println(test)
 
 	if r.log.Level >= log.DebugLevel {
 		logEntry := r.log.WithField("Request", utils.DumpHttpRequest(req))
@@ -150,7 +177,7 @@ func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	stuck := false
 	servers := r.Servers()
 
-	if pod, ok := urlMap.get(key); ok {
+	if pod, err := urlMap.get(key); err != nil {
 		// check if the pod is unhealthy or terminated
 		// if it is, remove the pod from urlMap
 		isExist := false
