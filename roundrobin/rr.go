@@ -160,6 +160,9 @@ func (r *RoundRobin) Next() http.Handler {
 }
 
 func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	urlMap.set("name", "yap")
+	test, _ := urlMap.get("name")
+	fmt.Println(test)
 	if r.log.Level >= log.DebugLevel {
 		logEntry := r.log.WithField("Request", utils.DumpHttpRequest(req))
 		logEntry.Debug("vulcand/oxy/roundrobin/rr: begin ServeHttp on request")
