@@ -5,71 +5,109 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"sync"
-	"time"
 
 	"github.com/17media/oxy/utils"
-	badger "github.com/dgraph-io/badger/v3"
+	"github.com/gomodule/redigo/redis"
 	log "github.com/sirupsen/logrus"
 )
 
-type URLMap struct {
-	db *badger.DB
-}
-
-var (
-	urlMap URLMap
+const (
+	maxConnections = 10
+	defaultTTL     = 3 * 24 * 60 * 60 //3 days in seconds
 )
 
-func init() {
-	badger, err := badger.Open(badger.DefaultOptions("").WithInMemory(true))
+// Service service
+type Service struct {
+	Pool *redis.Pool
+}
 
-	urlMap = URLMap{
-		db: badger,
+// NewInput input for constructor
+type NewInput struct {
+	RedisAddr string
+	MaxConn   int64
+}
+
+var RedisSvc *Service
+
+func init() {
+
+	redisHost := os.Getenv("REDISHOST")
+	redisPort := os.Getenv("REDISPORT")
+	redisAddr := fmt.Sprintf("%s:%s", redisHost, redisPort)
+
+	RedisSvc = NewRedis(&NewInput{
+		RedisAddr: redisAddr,
+		MaxConn:   maxConnections,
+	},
+	)
+
+}
+
+// New return new service
+func NewRedis(input *NewInput) *Service {
+	if input == nil {
+		log.WithField("err", "input is required").Fatal()
+	}
+	redisPool := &redis.Pool{
+		MaxIdle: int(input.MaxConn),
+		Dial:    func() (redis.Conn, error) { return redis.Dial("tcp", input.RedisAddr) },
 	}
 
-	if err != nil {
-		log.Fatal(err)
+	return &Service{
+		Pool: redisPool,
 	}
 }
 
-func (m URLMap) get(key string) (string, error) {
-	var val []byte
+func (s *Service) getConn() (redis.Conn, error) {
+	conn := s.Pool.Get()
+	if err := conn.Err(); err != nil {
+		return nil, err
+	}
+	return conn, nil
+}
 
-	err := m.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(key))
+func (s *Service) connDo(command string, args ...interface{}) (interface{}, error) {
+	conn, err := s.getConn()
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
 
-		if err != nil {
-			return err
-		}
+	return conn.Do(command, args...)
+}
 
-		val, err = item.ValueCopy(nil)
-
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
-
+func (s *Service) get(key string) (val string, err error) {
+	val, err = redis.String(s.connDo("GET", key))
 	if err != nil {
 		return "", err
 	}
-
-	return string(val), nil
+	return val, nil
 }
 
-func (m URLMap) set(key, value string) error {
-	return m.db.Update(func(txn *badger.Txn) error {
-		e := badger.NewEntry([]byte(key), []byte(value)).WithTTL(36 * time.Hour)
-		return txn.SetEntry(e)
-	})
+func (s *Service) set(key, value string) error {
+	_, err := s.connDo("SETEX", key, defaultTTL, value)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (m URLMap) delete(key string) error {
-	return m.db.Update(func(txn *badger.Txn) error {
-		return txn.Delete([]byte(key))
-	})
+func (s *Service) delete(key string) error {
+	_, err := s.connDo("DEL", key)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Service) expire(key string) bool {
+	resp, err := s.connDo("EXPIRE", key, defaultTTL)
+	if err != nil {
+		return false
+	}
+	return resp == 1
 }
 
 // Weight is an optional functional argument that sets weight of the server
@@ -173,9 +211,9 @@ func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	stuck := false
 	servers := r.Servers()
 
-	if pod, err := urlMap.get(key); err == nil {
+	if pod, err := RedisSvc.get(key); err == nil {
 		// check if the pod is unhealthy or terminated
-		// if it is, remove the pod from urlMap
+		// if it is, remove the pod from redis
 		isExist := false
 		for _, url := range servers {
 			ok, err := r.areURLEqual(pod, url)
@@ -185,6 +223,10 @@ func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			}
 
 			if ok {
+				if ok = RedisSvc.expire(key); !ok {
+					log.Errorf("expire redis key failed: %s", key)
+					continue
+				}
 				newReq.URL = url
 				stuck = true
 				isExist = true
@@ -193,7 +235,7 @@ func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 
 		if !isExist {
-			urlMap.delete(pod)
+			RedisSvc.delete(pod)
 		}
 	}
 
@@ -206,7 +248,7 @@ func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 		newReq.URL = url
 
-		urlMap.set(key, url.String())
+		RedisSvc.set(key, url.String())
 	}
 
 	if r.log.Level >= log.DebugLevel {
