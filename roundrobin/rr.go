@@ -13,7 +13,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const maxConnections = 10
+const (
+	maxConnections = 10
+	defaultTTL     = 3 * 24 * 60 * 60 //3 days in seconds
+)
 
 // Service service
 type Service struct {
@@ -72,8 +75,7 @@ func (s *Service) connDo(command string, args ...interface{}) (interface{}, erro
 	}
 	defer conn.Close()
 
-	reply, err := conn.Do(command, args...)
-	return reply, err
+	return conn.Do(command, args...)
 }
 
 func (s *Service) get(key string) (val string, err error) {
@@ -85,7 +87,7 @@ func (s *Service) get(key string) (val string, err error) {
 }
 
 func (s *Service) set(key, value string) error {
-	_, err := s.connDo("SET", key, value)
+	_, err := s.connDo("SETEX", key, defaultTTL, value)
 	if err != nil {
 		return err
 	}
@@ -98,6 +100,14 @@ func (s *Service) delete(key string) error {
 		return err
 	}
 	return nil
+}
+
+func (s *Service) expire(key string) bool {
+	resp, err := s.connDo("EXPIRE", key, defaultTTL)
+	if err != nil {
+		return false
+	}
+	return resp == 1
 }
 
 // Weight is an optional functional argument that sets weight of the server
@@ -203,7 +213,7 @@ func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	if pod, err := RedisSvc.get(key); err == nil {
 		// check if the pod is unhealthy or terminated
-		// if it is, remove the pod from urlMap
+		// if it is, remove the pod from redis
 		isExist := false
 		for _, url := range servers {
 			ok, err := r.areURLEqual(pod, url)
@@ -213,6 +223,10 @@ func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			}
 
 			if ok {
+				if ok = RedisSvc.expire(key); !ok {
+					log.Errorf("expire redis key failed: %s", key)
+					continue
+				}
 				newReq.URL = url
 				stuck = true
 				isExist = true
