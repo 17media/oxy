@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"reflect"
 	"sync"
 
 	"github.com/17media/oxy/utils"
@@ -109,9 +108,7 @@ func (s *Service) expire(key string) bool {
 		log.Error(err)
 		return false
 	}
-	log.Info(fmt.Sprintf("response from expire redis key: %s, %d", key, resp))
-	log.Info(fmt.Sprintf("resp type as %s", reflect.TypeOf(resp)))
-	return resp == 1
+	return resp == int64(1)
 }
 
 // Weight is an optional functional argument that sets weight of the server
