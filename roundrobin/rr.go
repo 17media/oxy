@@ -105,6 +105,7 @@ func (s *Service) delete(key string) error {
 func (s *Service) expire(key string) bool {
 	resp, err := s.connDo("EXPIRE", key, defaultTTL)
 	if err != nil {
+		log.Error(err)
 		return false
 	}
 	return resp == 1
