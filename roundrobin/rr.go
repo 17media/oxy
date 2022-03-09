@@ -105,9 +105,10 @@ func (s *Service) delete(key string) error {
 func (s *Service) expire(key string) bool {
 	resp, err := s.connDo("EXPIRE", key, defaultTTL)
 	if err != nil {
+		log.Error(err)
 		return false
 	}
-	return resp == 1
+	return resp == int64(1)
 }
 
 // Weight is an optional functional argument that sets weight of the server
